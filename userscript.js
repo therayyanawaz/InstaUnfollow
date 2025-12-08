@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Instagram Unfollowers 
 // @namespace    https://instagram.com/
-// @version      1.0
+// @version      2.0
 // @description  Find accounts that don't follow you back - works with any account by URL
 // @author       therayyanawaz
 // @match        https://www.instagram.com/*
@@ -10,7 +10,7 @@
 
 /**
  * ============================================
- * Instagram Unfollowers v1.0
+ * Instagram Unfollowers v2.0
  * ============================================
  * 
  * This userscript allows you to analyze any Instagram account's
@@ -214,24 +214,38 @@
       color: var(--color-accent);
       text-shadow: 0 0 10px var(--color-accent-glow);
     }
-    
-    /* Blinking cursor after title */
-    .iu-title::after {
-      content: '_';
-      animation: blink 1s step-end infinite;
+
+    /* Typewriter cursor */
+    .iu-title-cursor {
+      display: inline-block;
+      width: 0.6ch;
+      margin-left: 2px;
+      color: var(--color-accent);
+      animation: iu-cursor-blink 1s steps(2, start) infinite;
     }
     
-    @keyframes blink {
+    @keyframes iu-cursor-blink {
       0%, 50% { opacity: 1; }
-      51%, 100% { opacity: 0; }
+      50.01%, 100% { opacity: 0; }
     }
 
     .iu-subtitle {
       font-size: 0.7rem;
       color: var(--color-text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
+      text-transform: lowercase;
+      letter-spacing: 0.05em;
       font-weight: 400;
+    }
+
+    .iu-subtitle a {
+      color: var(--color-accent);
+      text-decoration: none;
+      transition: all var(--transition-fast);
+    }
+
+    .iu-subtitle a:hover {
+      text-decoration: underline;
+      text-shadow: 0 0 8px var(--color-accent-glow);
     }
 
     .iu-actions {
@@ -1159,6 +1173,65 @@
   };
 
   // ============================================
+  // Typewriter Effect - Animated title
+  // ============================================
+
+  // Track if typewriter is already running to avoid duplicates
+  let typewriterRunning = false;
+
+  /**
+   * Start the typewriter effect on the title
+   * Types and backspaces "UNFOLLOWERS" in a loop
+   */
+  function startTypewriterEffect() {
+    // Prevent multiple instances
+    if (typewriterRunning) return;
+
+    const textEl = document.querySelector('.iu-title-text');
+    if (!textEl) return;
+
+    typewriterRunning = true;
+    const fullText = 'UNFOLLOWERS';
+    const typeSpeed = 80;    // ms per character when typing
+    const deleteSpeed = 50;  // ms per character when deleting
+    const pauseBeforeDelete = 1500; // ms to wait before backspacing
+    const pauseBeforeType = 500;    // ms to wait before typing again
+
+    async function runLoop() {
+      while (typewriterRunning) {
+        // Wait before starting to delete
+        await sleep(pauseBeforeDelete);
+
+        // Backspace effect - delete one char at a time
+        let currentText = textEl.textContent || '';
+        while (currentText.length > 0) {
+          currentText = currentText.slice(0, -1);
+          textEl.textContent = currentText;
+          await sleep(deleteSpeed);
+        }
+
+        // Wait before typing again
+        await sleep(pauseBeforeType);
+
+        // Type effect - add one char at a time
+        for (let i = 0; i <= fullText.length; i++) {
+          textEl.textContent = fullText.slice(0, i);
+          await sleep(typeSpeed);
+        }
+      }
+    }
+
+    runLoop();
+  }
+
+  /**
+   * Stop the typewriter effect
+   */
+  function stopTypewriterEffect() {
+    typewriterRunning = false;
+  }
+
+  // ============================================
   // Storage - Local storage wrapper
   // ============================================
   const Storage = {
@@ -1491,17 +1564,29 @@
    * Render the header with branding and actions
    */
   function renderHeader() {
+    // Create title with typewriter spans
+    const titleEl = el('div', { className: 'iu-title' }, [
+      el('span', { className: 'iu-title-text' }, ['UNFOLLOWERS']),
+      el('span', { className: 'iu-title-cursor' }, ['▌'])
+    ]);
+
+    // Create subtitle with credit link
+    const subtitleEl = el('div', { className: 'iu-subtitle' });
+    const creditLink = el('a', {
+      href: 'https://www.instagram.com/therayyanawaz',
+      target: '_blank',
+      rel: 'noopener noreferrer'
+    }, ['@therayyanawaz']);
+    subtitleEl.appendChild(document.createTextNode('built by '));
+    subtitleEl.appendChild(creditLink);
+
     const header = el('header', { className: 'iu-header' }, [
       el('div', { className: 'iu-header-inner' }, [
         el('div', { className: 'iu-brand' }, [
           el('div', { className: 'iu-logo' }, ['>']),
           el('div', {}, [
-            el('div', { className: 'iu-title' }, ['UNFOLLOWERS']),
-            el('div', { className: 'iu-subtitle' }, [
-              state.targetUser
-                ? `target: @${state.targetUser.username}`
-                : 'v1.0 // terminal mode'
-            ])
+            titleEl,
+            subtitleEl
           ])
         ]),
         el('div', { className: 'iu-actions' }, [
@@ -1537,6 +1622,9 @@
         ])
       ]));
     }
+
+    // Start typewriter effect after header is in DOM
+    setTimeout(() => startTypewriterEffect(), 100);
 
     return header;
   }
